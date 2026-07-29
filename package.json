@@ -1,0 +1,30 @@
+{
+    "name": "call-graph-explorer",
+    "displayName": "Call Graph Explorer",
+    "description": "Interactive C/C++ Call Graph Explorer for Visual Studio Code",
+    "version": "0.0.1",
+    "publisher": "aria-vis",
+    "private": true,
+    "engines": {
+        "vscode": "^1.131.0"
+    },
+
+    "categories": [
+        "Other"
+    ],
+
+    "main": "./out/extension.js",
+
+    "activationEvents": [
+        "onCommand:callGraphExplorer.open"
+    ],
+
+    "contributes": {
+        "commands": [
+            {
+                "command": "callGraphExplorer.open",
+                "title": "Open Call Graph Explorer"
+            }
+        ]
+    }
+}
