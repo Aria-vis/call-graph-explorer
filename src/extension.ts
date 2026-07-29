@@ -12,10 +12,10 @@ export function activate(context: vscode.ExtensionContext) {
             }
 
             const document = editor.document;
-            const sourceCode = document.getText();
+            const position = editor.selection.active;
 
             vscode.window.showInformationMessage(
-                `File has ${sourceCode.length} characters.`
+                `Line: ${position.line + 1}, Column: ${position.character + 1}`
             );
         }
     );
