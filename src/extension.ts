@@ -12,9 +12,10 @@ export function activate(context: vscode.ExtensionContext) {
             }
 
             const document = editor.document;
+            const sourceCode = document.getText();
 
             vscode.window.showInformationMessage(
-                `Opened: ${document.fileName}`
+                `File has ${sourceCode.length} characters.`
             );
         }
     );
@@ -22,4 +23,4 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(disposable);
 }
 
-export function deactivate() {}
+export function deactivate() { }
