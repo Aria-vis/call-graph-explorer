@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { getDocumentSymbols } from "./symbolResolver";
 
 export function activate(context: vscode.ExtensionContext) {
     const disposable = vscode.commands.registerCommand(
@@ -12,10 +13,10 @@ export function activate(context: vscode.ExtensionContext) {
             }
 
             const document = editor.document;
-            const position = editor.selection.active;
+            const symbols = await getDocumentSymbols(document);
 
             vscode.window.showInformationMessage(
-                `Line: ${position.line + 1}, Column: ${position.character + 1}`
+                `Found ${symbols.length} top-level symbols.`
             );
         }
     );
