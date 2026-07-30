@@ -11,3 +11,17 @@ export async function getDocumentSymbols(
 
     return symbols ?? [];
 }
+
+export function getCurrentSymbol(
+    symbols: vscode.DocumentSymbol[],
+    position: vscode.Position
+): vscode.DocumentSymbol | undefined {
+
+    for (const symbol of symbols) {
+        if (symbol.range.contains(position)) {
+            return symbol;
+        }
+    }
+
+    return undefined;
+}

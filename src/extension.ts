@@ -1,5 +1,8 @@
 import * as vscode from "vscode";
-import { getDocumentSymbols } from "./symbolResolver";
+import {
+    getDocumentSymbols,
+    getCurrentSymbol
+} from "./symbolResolver";
 
 export function activate(context: vscode.ExtensionContext) {
     const disposable = vscode.commands.registerCommand(
@@ -13,10 +16,21 @@ export function activate(context: vscode.ExtensionContext) {
             }
 
             const document = editor.document;
+
             const symbols = await getDocumentSymbols(document);
 
+            const current = getCurrentSymbol(
+                symbols,
+                editor.selection.active
+            );
+
+            if (!current) {
+                vscode.window.showInformationMessage("No symbol found.");
+                return;
+            }
+
             vscode.window.showInformationMessage(
-                `Found ${symbols.length} top-level symbols.`
+                `Current Symbol: ${current.name}`
             );
         }
     );
@@ -24,4 +38,4 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(disposable);
 }
 
-export function deactivate() { }
+export function deactivate() {}
