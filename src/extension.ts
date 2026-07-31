@@ -1,8 +1,10 @@
 import * as vscode from "vscode";
 import {
     getDocumentSymbols,
-    getCurrentSymbol
+    getCurrentSymbol,
+    printSymbolTree
 } from "./symbolResolver";
+import { logger } from "./logger";
 
 export function activate(context: vscode.ExtensionContext) {
     const disposable = vscode.commands.registerCommand(
@@ -15,14 +17,29 @@ export function activate(context: vscode.ExtensionContext) {
                 return;
             }
 
+            logger.clear();
+            logger.show();
+            logger.info("Call Graph Explorer command executed.");
+
             const document = editor.document;
 
+            logger.info(`Opened file: ${document.fileName}`);
+
             const symbols = await getDocumentSymbols(document);
+            printSymbolTree(symbols);
+
+            logger.info(`Found ${symbols.length} top-level symbol(s).`);
 
             const current = getCurrentSymbol(
                 symbols,
                 editor.selection.active
             );
+
+            if (current) {
+                logger.info(`Current symbol: ${current.name}`);
+            } else {
+                logger.warn("Cursor is not inside any symbol.");
+            }
 
             if (!current) {
                 vscode.window.showInformationMessage("No symbol found.");
@@ -38,4 +55,4 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(disposable);
 }
 
-export function deactivate() {}
+export function deactivate() { }

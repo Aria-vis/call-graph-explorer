@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { logger } from "./logger";
 
 export async function getDocumentSymbols(
     document: vscode.TextDocument
@@ -24,4 +25,21 @@ export function getCurrentSymbol(
     }
 
     return undefined;
+}
+
+export function printSymbolTree(
+    symbols: vscode.DocumentSymbol[],
+    depth: number = 0
+) {
+    for (const symbol of symbols) {
+
+        logger.info(
+            `${"  ".repeat(depth)}${symbol.name} (${vscode.SymbolKind[symbol.kind]})`
+        );
+
+        printSymbolTree(
+            symbol.children,
+            depth + 1
+        );
+    }
 }
