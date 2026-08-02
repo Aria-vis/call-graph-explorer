@@ -1,0 +1,114 @@
+body {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: var(--vscode-editor-font-size, 13px);
+  color: var(--vscode-editor-foreground);
+  background-color: var(--vscode-editor-background);
+  padding: 0 12px 24px 12px;
+}
+
+.loading {
+  padding: 24px 4px;
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.breadcrumb {
+  padding: 10px 0 4px 0;
+  font-size: 0.95em;
+}
+
+.crumb {
+  cursor: pointer;
+  color: var(--vscode-textLink-foreground);
+}
+
+.crumb:hover {
+  text-decoration: underline;
+}
+
+.crumb.current {
+  color: var(--vscode-editor-foreground);
+  font-weight: 600;
+  cursor: default;
+}
+
+.crumb-sep {
+  margin: 0 6px;
+  opacity: 0.5;
+}
+
+.file-label {
+  opacity: 0.6;
+  font-size: 0.8em;
+  margin-bottom: 6px;
+}
+
+pre.code {
+  background: var(--vscode-textCodeBlock-background, rgba(127,127,127,0.08));
+  border: 1px solid var(--vscode-widget-border, transparent);
+  border-radius: 4px;
+  padding: 12px;
+  overflow-x: auto;
+  white-space: pre;
+  line-height: 1.5;
+}
+
+.call {
+  color: var(--vscode-textLink-foreground);
+  cursor: pointer;
+  border-bottom: 1px dashed var(--vscode-textLink-foreground);
+}
+
+.call:hover {
+  background: var(--vscode-editor-hoverHighlightBackground, rgba(120,180,255,0.15));
+}
+
+.type {
+  color: var(--vscode-charts-purple, #b180d7);
+  cursor: pointer;
+  border-bottom: 1px dotted var(--vscode-charts-purple, #b180d7);
+}
+
+.type:hover {
+  background: rgba(177, 128, 215, 0.15);
+}
+
+.pinned-panel {
+  margin-top: 18px;
+  border-top: 1px solid var(--vscode-widget-border, rgba(127,127,127,0.3));
+  padding-top: 10px;
+}
+
+.pinned-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.pinned-header button {
+  background: transparent;
+  border: none;
+  color: var(--vscode-editor-foreground);
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.pinned-header button:hover {
+  opacity: 1;
+}
+
+.pinned-code {
+  background: var(--vscode-textCodeBlock-background, rgba(127,127,127,0.08));
+  border-radius: 4px;
+  padding: 10px;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.pinned-empty {
+  opacity: 0.55;
+  font-style: italic;
+  font-size: 0.9em;
+}
