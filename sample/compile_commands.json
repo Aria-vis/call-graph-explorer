@@ -1,0 +1,7 @@
+[
+  {
+    "directory": "REPLACE_WITH_ABSOLUTE_PATH_TO/call-graph-explorer/sample",
+    "command": "clang++ -std=c++17 -c graph.cpp -o graph.o",
+    "file": "graph.cpp"
+  }
+]
