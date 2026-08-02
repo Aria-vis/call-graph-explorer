@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { logger } from "./logger";
 export interface ResolvedTarget {
   uri: vscode.Uri;
   range: vscode.Range;
@@ -34,6 +35,20 @@ const CPP_KEYWORDS = new Set([
   "asm", "and", "or", "not", "noexcept", "decltype", "static_cast",
   "dynamic_cast", "reinterpret_cast", "const_cast",
 ]);
+
+async function processInChunks<T, R>(
+  items: T[],
+  chunkSize: number,
+  processor: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    const chunk = items.slice(i, i + chunkSize);
+    const chunkResults = await Promise.all(chunk.map(processor));
+    results.push(...chunkResults);
+  }
+  return results;
+}
 
 function normalizeToLocations(
   result: (vscode.Location | vscode.LocationLink)[] | undefined
@@ -119,6 +134,9 @@ export async function buildFunctionFrame(
   name: string,
   range: vscode.Range
 ): Promise<FunctionFrame> {
+  logger.info(`Building function frame for: ${name}()`);
+  const startTime = Date.now(); 
+
   const document = await vscode.workspace.openTextDocument(uri);
   const text = document.getText(range);
   const baseOffset = document.offsetAt(range.start);
@@ -136,32 +154,33 @@ export async function buildFunctionFrame(
     });
   }
 
-  const identifiers: AnnotatedIdentifier[] = [];
+  logger.info(`Found ${candidates.length} potential identifier candidates in ${name}().`);
 
-  for (const candidate of candidates) {
+  const resolveCandidate = async (candidate: typeof candidates[0]): Promise<AnnotatedIdentifier | null> => {
     const position = document.positionAt(baseOffset + candidate.startInText);
 
     const rawDefs = await vscode.commands.executeCommand<
       (vscode.Location | vscode.LocationLink)[] | undefined
     >("vscode.executeDefinitionProvider", uri, position);
+    
     const defs = normalizeToLocations(rawDefs);
-    if (defs.length === 0) continue;
+    if (defs.length === 0) return null;
 
     const def = defs[0];
 
     if (def.uri.toString() === uri.toString() && def.range.intersection(range)) {
       const isInsideSameFunctionAsDeclSite =
         def.range.start.line >= range.start.line && def.range.end.line <= range.end.line;
-      if (isInsideSameFunctionAsDeclSite && candidate.name.length < 3) continue;
+      if (isInsideSameFunctionAsDeclSite && candidate.name.length < 3) return null;
     }
 
     const targetSymbol = await findSymbolAt(def.uri, def.range.start);
-    if (!targetSymbol || !CALL_OR_TYPE_KIND.has(targetSymbol.kind)) continue;
+    if (!targetSymbol || !CALL_OR_TYPE_KIND.has(targetSymbol.kind)) return null;
 
     const kind = classify(targetSymbol.kind);
-    if (!kind) continue;
+    if (!kind) return null;
 
-    identifiers.push({
+    return {
       name: candidate.name,
       startInText: candidate.startInText,
       endInText: candidate.endInText,
@@ -172,8 +191,16 @@ export async function buildFunctionFrame(
         name: targetSymbol.name,
         kind: targetSymbol.kind,
       },
-    });
-  }
+    };
+  };
+
+  const CHUNK_SIZE = 5;
+  const results = await processInChunks(candidates, CHUNK_SIZE, resolveCandidate);
+  
+  const identifiers = results.filter((r): r is AnnotatedIdentifier => r !== null);
+
+  const duration = Date.now() - startTime;
+  logger.info(`Frame generation for ${name}() completed in ${duration}ms. Resolved ${identifiers.length} viable targets.`);
 
   return { uri, name, range, text, identifiers };
 }
