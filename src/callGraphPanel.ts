@@ -96,6 +96,15 @@ export class CallGraphPanel {
   private async pushFrame(uri: vscode.Uri, name: string, range: vscode.Range) {
     this.setLoading(`Resolving ${name}()...`);
     const frame = await buildFunctionFrame(uri, name, range);
+
+    console.log(`RESOLVED IN ${name}:`, frame.identifiers.map(id => id.name));
+
+    if (frame.identifiers.length === 0) {
+      vscode.window.showWarningMessage(
+        `No calls or types resolved in ${name}(). If this is unexpected, ensure your C/C++ Language Server (e.g., clangd) is installed and has finished indexing.`
+      );
+    }
+
     this.stack.push(frame);
     this.pinnedType = undefined;
     this.render();

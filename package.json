@@ -4,13 +4,24 @@
     "description": "Interactive C/C++ Call Graph Explorer for Visual Studio Code",
     "version": "0.0.1",
     "publisher": "aria-vis",
-    "private": true,
     "engines": {
         "vscode": "^1.131.0"
     },
     "categories": [
         "Other"
     ],
+    "keywords": [
+        "cpp",
+        "c++",
+        "call graph",
+        "competitive programming",
+        "algorithms"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Aria-vis/call-graph-explorer"
+    },
+    "icon": "media/icon.png",
     "main": "./out/extension.js",
     "activationEvents": [
         "onCommand:callGraphExplorer.open"

@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { logger } from "./logger";
+
 export interface ResolvedTarget {
   uri: vscode.Uri;
   range: vscode.Range;
@@ -33,7 +34,8 @@ const CPP_KEYWORDS = new Set([
   "signed", "true", "false", "nullptr", "NULL", "new", "delete", "this",
   "throw", "try", "catch", "operator", "explicit", "extern", "register",
   "asm", "and", "or", "not", "noexcept", "decltype", "static_cast",
-  "dynamic_cast", "reinterpret_cast", "const_cast",
+  "dynamic_cast", "reinterpret_cast", "const_cast", "std", "cout", "cin", "endl",
+  "vector", "string", "map", "set", "unordered_map"
 ]);
 
 async function processInChunks<T, R>(
@@ -50,30 +52,6 @@ async function processInChunks<T, R>(
   return results;
 }
 
-function normalizeToLocations(
-  result: (vscode.Location | vscode.LocationLink)[] | undefined
-): vscode.Location[] {
-  if (!result) return [];
-  return result.map((r) =>
-    "targetUri" in r
-      ? new vscode.Location(r.targetUri, r.targetSelectionRange ?? r.targetRange)
-      : r
-  );
-}
-
-function findInnermostSymbol(
-  symbols: vscode.DocumentSymbol[],
-  position: vscode.Position
-): vscode.DocumentSymbol | undefined {
-  for (const sym of symbols) {
-    if (sym.range.contains(position)) {
-      const deeper = findInnermostSymbol(sym.children, position);
-      return deeper ?? sym;
-    }
-  }
-  return undefined;
-}
-
 async function getDocumentSymbols(uri: vscode.Uri): Promise<vscode.DocumentSymbol[]> {
   const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[] | undefined>(
     "vscode.executeDocumentSymbolProvider",
@@ -82,51 +60,35 @@ async function getDocumentSymbols(uri: vscode.Uri): Promise<vscode.DocumentSymbo
   return symbols ?? [];
 }
 
+function flattenSymbols(symbols: vscode.DocumentSymbol[]): vscode.DocumentSymbol[] {
+  let flat: vscode.DocumentSymbol[] = [];
+  for (const sym of symbols) {
+    flat.push(sym);
+    if (sym.children && sym.children.length > 0) {
+      flat = flat.concat(flattenSymbols(sym.children));
+    }
+  }
+  return flat;
+}
+
 export async function getEnclosingFunction(
   document: vscode.TextDocument,
   position: vscode.Position
 ): Promise<{ name: string; range: vscode.Range } | undefined> {
   const symbols = await getDocumentSymbols(document.uri);
-  const sym = findInnermostSymbol(symbols, position);
-  if (!sym) return undefined;
-  if (sym.kind !== vscode.SymbolKind.Function && sym.kind !== vscode.SymbolKind.Method) {
-    return undefined;
+  const flat = flattenSymbols(symbols);
+  const match = flat.find(
+    (sym) =>
+      (sym.range.contains(position) || sym.selectionRange.contains(position)) &&
+      (sym.kind === vscode.SymbolKind.Function || sym.kind === vscode.SymbolKind.Method)
+  );
+  
+  if (match) {
+      // Clean the name for the UI breadcrumb
+      const cleanName = match.name.split(/[\(\<]/)[0].trim();
+      return { name: cleanName, range: match.range };
   }
-  return { name: sym.name, range: sym.range };
-}
-
-async function findSymbolAt(
-  uri: vscode.Uri,
-  position: vscode.Position
-): Promise<vscode.DocumentSymbol | undefined> {
-  const symbols = await getDocumentSymbols(uri);
-  return findInnermostSymbol(symbols, position);
-}
-
-const CALL_OR_TYPE_KIND = new Set<vscode.SymbolKind>([
-  vscode.SymbolKind.Function,
-  vscode.SymbolKind.Method,
-  vscode.SymbolKind.Constructor,
-  vscode.SymbolKind.Struct,
-  vscode.SymbolKind.Class,
-  vscode.SymbolKind.Interface,
-  vscode.SymbolKind.Enum,
-]);
-
-function classify(kind: vscode.SymbolKind): "call" | "type" | undefined {
-  switch (kind) {
-    case vscode.SymbolKind.Function:
-    case vscode.SymbolKind.Method:
-    case vscode.SymbolKind.Constructor:
-      return "call";
-    case vscode.SymbolKind.Struct:
-    case vscode.SymbolKind.Class:
-    case vscode.SymbolKind.Interface:
-    case vscode.SymbolKind.Enum:
-      return "type";
-    default:
-      return undefined;
-  }
+  return undefined;
 }
 
 export async function buildFunctionFrame(
@@ -135,15 +97,29 @@ export async function buildFunctionFrame(
   range: vscode.Range
 ): Promise<FunctionFrame> {
   logger.info(`Building function frame for: ${name}()`);
-  const startTime = Date.now(); 
+  const startTime = Date.now();
 
   const document = await vscode.workspace.openTextDocument(uri);
   const text = document.getText(range);
   const baseOffset = document.offsetAt(range.start);
 
+  const rawSymbols = await getDocumentSymbols(uri);
+  const flatSymbols = flattenSymbols(rawSymbols);
+  const fileSymbolMap = new Map<string, vscode.DocumentSymbol>();
+
+  // THE FIX: Clean the symbol names before saving them to the dictionary
+  for (const sym of flatSymbols) {
+    if ([vscode.SymbolKind.Function, vscode.SymbolKind.Method, vscode.SymbolKind.Struct, vscode.SymbolKind.Class].includes(sym.kind)) {
+      // Strips away "(int, int)" or "<Trade>" to just leave the raw identifier
+      const cleanName = sym.name.split(/[\(\<]/)[0].trim();
+      fileSymbolMap.set(cleanName, sym);
+    }
+  }
+
   const identifierRegex = /\b[A-Za-z_]\w*\b/g;
   const candidates: { name: string; startInText: number; endInText: number }[] = [];
   let match: RegExpExecArray | null;
+  
   while ((match = identifierRegex.exec(text)) !== null) {
     const word = match[0];
     if (CPP_KEYWORDS.has(word)) continue;
@@ -154,53 +130,85 @@ export async function buildFunctionFrame(
     });
   }
 
-  logger.info(`Found ${candidates.length} potential identifier candidates in ${name}().`);
+  const resolveCandidate = async (
+    candidate: typeof candidates[0]
+  ): Promise<AnnotatedIdentifier | null> => {
+    
+    // Prevent self-loop on the function's own declaration line
+    if (candidate.name === name && candidate.startInText < text.indexOf("{")) {
+      return null;
+    }
 
-  const resolveCandidate = async (candidate: typeof candidates[0]): Promise<AnnotatedIdentifier | null> => {
+    // FIRST PASS: Check our cleaned local dictionary
+    const localSym = fileSymbolMap.get(candidate.name);
+    if (localSym) {
+      const isType = localSym.kind === vscode.SymbolKind.Struct || localSym.kind === vscode.SymbolKind.Class;
+      return {
+        name: candidate.name,
+        startInText: candidate.startInText,
+        endInText: candidate.endInText,
+        classification: isType ? "type" : "call",
+        target: {
+          uri: uri,
+          range: localSym.range, // Safely returns the FULL function/struct block
+          name: candidate.name,
+          kind: localSym.kind,
+        },
+      };
+    }
+
+    // SECOND PASS: Fallback to Definition Provider for external/standard library calls
     const position = document.positionAt(baseOffset + candidate.startInText);
-
     const rawDefs = await vscode.commands.executeCommand<
       (vscode.Location | vscode.LocationLink)[] | undefined
     >("vscode.executeDefinitionProvider", uri, position);
-    
-    const defs = normalizeToLocations(rawDefs);
-    if (defs.length === 0) return null;
 
-    const def = defs[0];
+    if (rawDefs && rawDefs.length > 0) {
+      const def = "targetUri" in rawDefs[0] 
+        ? new vscode.Location(rawDefs[0].targetUri, rawDefs[0].targetRange) 
+        : rawDefs[0];
 
-    if (def.uri.toString() === uri.toString() && def.range.intersection(range)) {
-      const isInsideSameFunctionAsDeclSite =
-        def.range.start.line >= range.start.line && def.range.end.line <= range.end.line;
-      if (isInsideSameFunctionAsDeclSite && candidate.name.length < 3) return null;
+      const isInsideSameFunction =
+        def.uri.toString() === uri.toString() &&
+        def.range.start.line >= range.start.line &&
+        def.range.end.line <= range.end.line;
+
+      if (isInsideSameFunction && candidate.name !== name) {
+        return null;
+      }
+
+      const isType = candidate.name[0] === candidate.name[0].toUpperCase() && candidate.name[0] !== candidate.name[0].toLowerCase();
+      
+      if (!isType) {
+        const textAfterWord = text.slice(candidate.endInText).trimStart();
+        if (!textAfterWord.startsWith("(")) {
+          return null; // Ignore struct properties like 'price' or 'id'
+        }
+      }
+
+      return {
+        name: candidate.name,
+        startInText: candidate.startInText,
+        endInText: candidate.endInText,
+        classification: isType ? "type" : "call",
+        target: {
+          uri: def.uri,
+          range: def.range,
+          name: candidate.name,
+          kind: isType ? vscode.SymbolKind.Struct : vscode.SymbolKind.Function,
+        },
+      };
     }
 
-    const targetSymbol = await findSymbolAt(def.uri, def.range.start);
-    if (!targetSymbol || !CALL_OR_TYPE_KIND.has(targetSymbol.kind)) return null;
-
-    const kind = classify(targetSymbol.kind);
-    if (!kind) return null;
-
-    return {
-      name: candidate.name,
-      startInText: candidate.startInText,
-      endInText: candidate.endInText,
-      classification: kind,
-      target: {
-        uri: def.uri,
-        range: targetSymbol.range,
-        name: targetSymbol.name,
-        kind: targetSymbol.kind,
-      },
-    };
+    return null;
   };
 
   const CHUNK_SIZE = 5;
   const results = await processInChunks(candidates, CHUNK_SIZE, resolveCandidate);
-  
   const identifiers = results.filter((r): r is AnnotatedIdentifier => r !== null);
 
   const duration = Date.now() - startTime;
-  logger.info(`Frame generation for ${name}() completed in ${duration}ms. Resolved ${identifiers.length} viable targets.`);
+  logger.info(`Frame generation for ${name}() completed in ${duration}ms. Resolved ${identifiers.length} targets.`);
 
   return { uri, name, range, text, identifiers };
 }
