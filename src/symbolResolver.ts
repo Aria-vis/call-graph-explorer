@@ -77,17 +77,35 @@ export async function getEnclosingFunction(
 ): Promise<{ name: string; range: vscode.Range } | undefined> {
   const symbols = await getDocumentSymbols(document.uri);
   const flat = flattenSymbols(symbols);
-  const match = flat.find(
-    (sym) =>
-      (sym.range.contains(position) || sym.selectionRange.contains(position)) &&
-      (sym.kind === vscode.SymbolKind.Function || sym.kind === vscode.SymbolKind.Method)
-  );
   
-  if (match) {
-      // Clean the name for the UI breadcrumb
-      const cleanName = match.name.split(/[\(\<]/)[0].trim();
-      return { name: cleanName, range: match.range };
+  let targetFunction: vscode.DocumentSymbol | undefined = undefined;
+
+  for (const sym of flat) {
+    if ((sym.kind === vscode.SymbolKind.Function || sym.kind === vscode.SymbolKind.Method) &&
+        (sym.range.contains(position) || sym.selectionRange.contains(position))) {
+        targetFunction = sym;
+        break;
+    }
   }
+
+  if (!targetFunction) {
+    let closestDistance = Infinity;
+    for (const sym of flat) {
+        if (sym.kind === vscode.SymbolKind.Function || sym.kind === vscode.SymbolKind.Method) {
+            const lineDiff = position.line - sym.range.start.line;
+            if (lineDiff >= 0 && lineDiff < closestDistance) {
+                closestDistance = lineDiff;
+                targetFunction = sym;
+            }
+        }
+    }
+  }
+  
+  if (targetFunction) {
+      const cleanName = targetFunction.name.split(/[\(\<]/)[0].trim();
+      return { name: cleanName, range: targetFunction.range };
+  }
+  
   return undefined;
 }
 
@@ -107,10 +125,8 @@ export async function buildFunctionFrame(
   const flatSymbols = flattenSymbols(rawSymbols);
   const fileSymbolMap = new Map<string, vscode.DocumentSymbol>();
 
-  // THE FIX: Clean the symbol names before saving them to the dictionary
   for (const sym of flatSymbols) {
     if ([vscode.SymbolKind.Function, vscode.SymbolKind.Method, vscode.SymbolKind.Struct, vscode.SymbolKind.Class].includes(sym.kind)) {
-      // Strips away "(int, int)" or "<Trade>" to just leave the raw identifier
       const cleanName = sym.name.split(/[\(\<]/)[0].trim();
       fileSymbolMap.set(cleanName, sym);
     }
@@ -134,12 +150,10 @@ export async function buildFunctionFrame(
     candidate: typeof candidates[0]
   ): Promise<AnnotatedIdentifier | null> => {
     
-    // Prevent self-loop on the function's own declaration line
     if (candidate.name === name && candidate.startInText < text.indexOf("{")) {
       return null;
     }
 
-    // FIRST PASS: Check our cleaned local dictionary
     const localSym = fileSymbolMap.get(candidate.name);
     if (localSym) {
       const isType = localSym.kind === vscode.SymbolKind.Struct || localSym.kind === vscode.SymbolKind.Class;
@@ -150,14 +164,13 @@ export async function buildFunctionFrame(
         classification: isType ? "type" : "call",
         target: {
           uri: uri,
-          range: localSym.range, // Safely returns the FULL function/struct block
+          range: localSym.range,
           name: candidate.name,
           kind: localSym.kind,
         },
       };
     }
 
-    // SECOND PASS: Fallback to Definition Provider for external/standard library calls
     const position = document.positionAt(baseOffset + candidate.startInText);
     const rawDefs = await vscode.commands.executeCommand<
       (vscode.Location | vscode.LocationLink)[] | undefined
@@ -182,7 +195,7 @@ export async function buildFunctionFrame(
       if (!isType) {
         const textAfterWord = text.slice(candidate.endInText).trimStart();
         if (!textAfterWord.startsWith("(")) {
-          return null; // Ignore struct properties like 'price' or 'id'
+          return null;
         }
       }
 

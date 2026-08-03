@@ -24,7 +24,6 @@ function nonce(): string {
   return text;
 }
 
-/** Splices <span> markers into a function's escaped source at the identifier offsets found by symbolResolver. */
 function renderAnnotatedSource(frame: FunctionFrame): string {
   const ids = [...frame.identifiers].sort((a, b) => a.startInText - b.startInText);
   let html = "";
