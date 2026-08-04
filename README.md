@@ -1,28 +1,28 @@
-# Call Graph Explorer
+# 🧭 Call Graph Explorer
 
-Navigate complex C/C++ call stacks, recursive algorithms, and structs directly in a visual webview without losing your context. 
+A specialized VS Code extension built to visualize deep recursive calls and execution flow in C++. 
 
-## Features
+Standard IDE call hierarchies often break when parsing single-file algorithmic templates. Call Graph Explorer is engineered to survive the chaotic, macro-heavy environments of competitive programming, filtering out the noise of standard libraries and focusing entirely on your custom logic.
 
-* **Interactive Call Graph:** Click on any function call to instantly drill down into its execution path.
-* **Inline Struct Peeking:** Click on custom structs or classes to open a clean definition view at the bottom of the panel, avoiding disruptive file jumps.
-* **Breadcrumb Navigation:** Keep track of deeply nested recursive calls and snap back to the top of your stack with a single click.
-* **Context-Aware:** Intelligently filters out local variables so you only see the architectural flow of your code.
+![Demo](link-to-a-gif-or-screenshot-here.gif) 
 
-## Requirements
+## ✨ Key Features
+* **Surgical Focus:** Automatically ignores standard C++ boilerplate (I/O streams, standard template library methods) to map only the custom algorithmic flow.
+* **Macro Resilience Engine:** Implements a custom heuristic fallback that correctly identifies function boundaries even when the C++ Language Server (IntelliSense/clangd) fails due to complex multi-line `#define` macros.
+* **Breadcrumb Navigation:** Drill down into deep recursive trees and snap back to the surface instantly using a visual stack trace.
+* **Type Peeking:** Instantly peek into custom `struct` or `class` definitions in a floating panel without losing your place in the function stack.
 
-This extension requires an active C/C++ Language Server to parse symbols. Ensure you have one of the following installed and running:
-* [C/C++ by Microsoft](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools) 
-* [clangd](https://marketplace.visualstudio.com/items?itemName=llvm-vs-code-extensions.vscode-clangd)
+## 🚀 How to Install 
+You can install and test this extension in less than 30 seconds:
 
-## Usage
+1. Download the latest `call-graph-explorer-0.0.1.vsix` file from the [Releases page](https://github.com/Aria-vis/call-graph-explorer/releases).
+2. Open VS Code and navigate to the **Extensions** panel (`Ctrl+Shift+X`).
+3. Click the **`...`** (Views and More Actions) menu at the top right of the panel.
+4. Select **Install from VSIX...** and choose the downloaded file.
 
-1. Open a C or C++ file.
-2. Place your cursor inside a function body (e.g., `main()`).
-3. Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`).
-4. Run **`Open Call Graph Explorer`**.
-
-## Release Notes
-
-### 0.0.1
-* Initial release: Core parsing engine, webview UI, and recursive symbol resolution.
+## 💻 Usage Instructions
+1. Open any C++ file in your workspace (ensure a C/C++ language extension is active).
+2. Place your cursor anywhere inside a function body (e.g., inside `main()`).
+3. Press `Ctrl + Shift + P` to open the Command Palette.
+4. Type **`Open Call Graph Explorer`** and hit Enter.
+5. Click on highlighted function calls to navigate the execution tree!
